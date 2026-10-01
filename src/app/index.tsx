@@ -1,38 +1,31 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AddTaskForm from "../components/AddTaskForm";
 
 type Task = {
   id: number;
   text: string;
+  date: string;
+  time: string;
   done: boolean;
 };
 
 export default function HomeScreen() {
-  const [task, setTask] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  function addTask() {
-    if (!task.trim()) return;
-
+  function addTask(text: string, date: string, time: string) {
     setTasks([
       ...tasks,
       {
         id: Date.now(),
-        text: task.trim(),
+        text,
+        date,
+        time,
         done: false,
       },
     ]);
-
-    setTask("");
   }
 
   function toggleTask(id: number) {
@@ -60,24 +53,7 @@ export default function HomeScreen() {
 
       <Text style={styles.subtitle}>Stay organized and get things done!</Text>
 
-      <View style={styles.inputCard}>
-        <Ionicons name="pencil" size={18} color="#9CA3AF" />
-
-        <TextInput
-          style={styles.input}
-          value={task}
-          onChangeText={setTask}
-          placeholder="Type a task..."
-          placeholderTextColor="#9CA3AF"
-          onSubmitEditing={addTask}
-          returnKeyType="done"
-        />
-
-        <Pressable style={styles.addButton} onPress={addTask}>
-          <Ionicons name="add" size={18} color="white" />
-          <Text style={styles.addText}>Add</Text>
-        </Pressable>
-      </View>
+      <AddTaskForm onAdd={addTask} />
 
       <ScrollView
         style={styles.list}
@@ -96,9 +72,16 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              <Text style={[styles.taskText, item.done && styles.taskTextDone]}>
-                {item.text}
-              </Text>
+              <View style={styles.taskTextGroup}>
+                <Text
+                  style={[styles.taskText, item.done && styles.taskTextDone]}
+                >
+                  {item.text}
+                </Text>
+                <Text style={styles.taskMeta}>
+                  {item.date} • {item.time}
+                </Text>
+              </View>
             </Pressable>
 
             <Pressable
@@ -165,45 +148,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  inputCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "white",
-    borderRadius: 18,
-    paddingLeft: 16,
-    paddingRight: 8,
-    paddingVertical: 8,
-    gap: 10,
-    shadowColor: "#5B4CF0",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-
-  input: {
-    flex: 1,
-    height: 40,
-    fontSize: 16,
-    color: "#1F1B4D",
-  },
-
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#5B4CF0",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 44,
-  },
-
-  addText: {
-    color: "white",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-
   list: {
     marginTop: 20,
   },
@@ -249,8 +193,11 @@ const styles = StyleSheet.create({
     borderColor: "#5B4CF0",
   },
 
-  taskText: {
+  taskTextGroup: {
     flex: 1,
+  },
+
+  taskText: {
     color: "#1F1B4D",
     fontSize: 16,
     fontWeight: "700",
@@ -259,6 +206,12 @@ const styles = StyleSheet.create({
   taskTextDone: {
     color: "#9CA3AF",
     textDecorationLine: "line-through",
+  },
+
+  taskMeta: {
+    color: "#9CA3AF",
+    fontSize: 12,
+    marginTop: 2,
   },
 
   deleteButton: {
