@@ -58,7 +58,9 @@ export default function HomeScreen() {
         <View style={styles.logoBox}>
           <Ionicons name="checkbox-outline" size={28} color="#5B4CF0" />
         </View>
-        <Text style={styles.title}>My Tasks</Text>
+        <Text style={styles.title}>𝔒ray’s{"\n"}      𝔇esk</Text>
+        
+        
 
         <Pressable
           style={styles.calendarButton}
@@ -111,7 +113,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#EEF2FF",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 15,
   },
   header: {
     flexDirection: "row",
@@ -128,8 +130,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#1F1B4D",
-    fontSize: 34,
+    fontSize: 35,
     fontWeight: "800",
+     lineHeight: 30,
   },
   calendarButton: {
     marginLeft: "auto",
