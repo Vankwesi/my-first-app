@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Task } from "../types/task";
@@ -8,9 +9,12 @@ type TaskItemProps = {
   task: Task;
   onToggle: (id: number) => void;
   onDelete: (id: number) => void;
+  onEdit: (task: Task) => void;
 };
 
-export default function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
+export default function TaskItem({ task, onToggle, onDelete, onEdit }: TaskItemProps) {
+  const swipeableRef = useRef<Swipeable>(null);
+
   function renderRightActions() {
     return (
       <Pressable
@@ -22,10 +26,27 @@ export default function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
     );
   }
 
+  function renderLeftActions() {
+    return (
+      <Pressable
+        style={styles.editAction}
+        onPress={() => {
+          swipeableRef.current?.close();
+          onEdit(task);
+        }}
+      >
+        <Ionicons name="pencil" size={20} color="white" />
+      </Pressable>
+    );
+  }
+
   return (
     <Swipeable
+      ref={swipeableRef}
       renderRightActions={renderRightActions}
+      renderLeftActions={task.done ? undefined : renderLeftActions}
       overshootRight={false}
+      overshootLeft={false}
     >
       <View style={styles.taskRow}>
         <Pressable
@@ -114,5 +135,13 @@ const styles = StyleSheet.create({
     width: 72,
     borderRadius: 16,
     marginLeft: 8,
+  },
+  editAction: {
+    backgroundColor: "#5B4CF0",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 72,
+    borderRadius: 16,
+    marginRight: 8,
   },
 });

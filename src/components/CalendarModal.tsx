@@ -1,9 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Dimensions,
+  Keyboard,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,7 +31,12 @@ type CalendarModalProps = {
   onClose: () => void;
   tasks: Task[];
   onEditTask: (id: number, text: string, timestamp: number) => void;
+  onToggleTask: (id: number) => void;
   onClearMonth: (year: number, month: number) => void;
+  // When set (and visible is true), the modal opens straight into the
+  // edit screen for this task instead of the month grid — used by
+  // TaskItem's swipe-right Edit action.
+  openDirectlyForTask?: Task | null;
 };
 
 const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -38,7 +46,9 @@ export default function CalendarModal({
   onClose,
   tasks,
   onEditTask,
+  onToggleTask,
   onClearMonth,
+  openDirectlyForTask,
 }: CalendarModalProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -49,6 +59,43 @@ export default function CalendarModal({
   const [editText, setEditText] = useState("");
   const [editDate, setEditDate] = useState(new Date());
   const [editTime, setEditTime] = useState(new Date());
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  // Manual keyboard tracking instead of KeyboardAvoidingView: inside a
+  // Modal, KeyboardAvoidingView often fails to measure correctly
+  // (especially on Android, since Modal opens its own native window), so
+  // we shrink the sheet's own max height by the keyboard's height instead
+  // and let the ScrollView handle the rest.
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  function startEdit(task: Task) {
+    setEditingTask(task);
+    setEditText(task.text);
+    setEditDate(new Date(task.timestamp));
+    setEditTime(new Date(task.timestamp));
+  }
+
+  // Swipe-right-to-edit entry point: jump straight to the edit screen.
+  useEffect(() => {
+    if (visible && openDirectlyForTask) {
+      startEdit(openDirectlyForTask);
+    }
+  }, [visible, openDirectlyForTask]);
 
   function goToPreviousMonth() {
     setCurrentMonth(
@@ -62,8 +109,6 @@ export default function CalendarModal({
     );
   }
 
-  // Swipe left/right to change month, using React Native's built-in
-  // PanResponder (no extra gesture library needed beyond what's installed).
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) =>
@@ -126,13 +171,6 @@ export default function CalendarModal({
     setSelectedDay(new Date(year, month, day));
   }
 
-  function startEdit(task: Task) {
-    setEditingTask(task);
-    setEditText(task.text);
-    setEditDate(new Date(task.timestamp));
-    setEditTime(new Date(task.timestamp));
-  }
-
   function saveEdit() {
     if (!editingTask || !editText.trim()) return;
     onEditTask(
@@ -142,6 +180,12 @@ export default function CalendarModal({
     );
     setEditingTask(null);
     setSelectedDay(null);
+  }
+
+  function toggleEditingTaskDone() {
+    if (!editingTask) return;
+    onToggleTask(editingTask.id);
+    setEditingTask((prev) => (prev ? { ...prev, done: !prev.done } : prev));
   }
 
   function handleClearMonth() {
@@ -165,6 +209,12 @@ export default function CalendarModal({
     onClose();
   }
 
+  const screenHeight = Dimensions.get("window").height;
+  const sheetMaxHeight =
+    editingTask && keyboardHeight > 0
+      ? screenHeight - keyboardHeight - 24
+      : screenHeight * 0.85;
+
   return (
     <Modal
       visible={visible}
@@ -173,9 +223,12 @@ export default function CalendarModal({
       onRequestClose={handleClose}
     >
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { maxHeight: sheetMaxHeight }]}>
           {editingTask ? (
-            <>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.editScrollContent}
+            >
               <View style={styles.sheetHeader}>
                 <Pressable onPress={() => setEditingTask(null)} hitSlop={8}>
                   <Ionicons name="chevron-back" size={22} color="#5B4CF0" />
@@ -201,10 +254,28 @@ export default function CalendarModal({
                 onTimeChange={setEditTime}
               />
 
+              <Pressable
+                style={styles.completeButton}
+                onPress={toggleEditingTaskDone}
+              >
+                <Ionicons
+                  name={
+                    editingTask.done
+                      ? "refresh-outline"
+                      : "checkmark-circle-outline"
+                  }
+                  size={18}
+                  color="#5B4CF0"
+                />
+                <Text style={styles.completeButtonText}>
+                  {editingTask.done ? "Mark Incomplete" : "Mark Completed"}
+                </Text>
+              </Pressable>
+
               <Pressable style={styles.saveButton} onPress={saveEdit}>
                 <Text style={styles.saveButtonText}>Save</Text>
               </Pressable>
-            </>
+            </ScrollView>
           ) : selectedDay ? (
             <>
               <View style={styles.sheetHeader}>
@@ -357,7 +428,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 20,
     paddingBottom: 32,
-    maxHeight: "85%",
+  },
+  editScrollContent: {
+    paddingBottom: 12,
   },
   sheetHeader: {
     flexDirection: "row",
@@ -488,6 +561,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#1F1B4D",
     marginBottom: 12,
+  },
+  completeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#E0E7FF",
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginTop: 14,
+  },
+  completeButtonText: {
+    color: "#5B4CF0",
+    fontWeight: "700",
+    fontSize: 14,
   },
   saveButton: {
     backgroundColor: "#5B4CF0",

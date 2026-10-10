@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AddTaskForm from "../components/AddTaskForm";
@@ -22,10 +22,29 @@ import { loadTasks, saveTasks } from "../utils/storage";
 export default function HomeScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [calendarVisible, setCalendarVisible] = useState(false);
+  const [editTarget, setEditTarget] = useState<Task | null>(null);
   const tasksRef = useRef<Task[]>(tasks);
   const hasLoadedRef = useRef(false);
 
   tasksRef.current = tasks;
+
+  // Display-only ordering. `tasks` itself (and storage) keeps plain
+  // insertion order always — this is purely derived for rendering.
+  //
+  // Incomplete tasks are sorted soonest-due-first among themselves, but
+  // each completed task stays pinned at its own original position in the
+  // list rather than jumping anywhere — completing a task should not
+  // visibly move it.
+  const sortedTasks = useMemo(() => {
+    const incompleteSorted = tasks
+      .filter((t) => !t.done)
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    let incompleteIndex = 0;
+    return tasks.map((t) =>
+      t.done ? t : incompleteSorted[incompleteIndex++]
+    );
+  }, [tasks]);
 
   async function handleResponse(response: Notifications.NotificationResponse) {
     const action = interpretResponse(response);
@@ -153,6 +172,16 @@ export default function HomeScreen() {
     toDelete.forEach((item) => cancelTaskNotifications(item.id));
   }
 
+  function openEditForTask(task: Task) {
+    setEditTarget(task);
+    setCalendarVisible(true);
+  }
+
+  function closeCalendar() {
+    setCalendarVisible(false);
+    setEditTarget(null);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -180,16 +209,17 @@ export default function HomeScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
-        {tasks.map((item) => (
+        {sortedTasks.map((item) => (
           <TaskItem
             key={item.id}
             task={item}
             onToggle={toggleTask}
             onDelete={deleteTask}
+            onEdit={openEditForTask}
           />
         ))}
 
-        {tasks.length === 0 && (
+        {sortedTasks.length === 0 && (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>📋</Text>
             <Text style={styles.emptyTitle}>No tasks yet</Text>
@@ -200,10 +230,12 @@ export default function HomeScreen() {
 
       <CalendarModal
         visible={calendarVisible}
-        onClose={() => setCalendarVisible(false)}
+        onClose={closeCalendar}
         tasks={tasks}
         onEditTask={editTask}
+        onToggleTask={toggleTask}
         onClearMonth={clearMonth}
+        openDirectlyForTask={editTarget}
       />
     </SafeAreaView>
   );
